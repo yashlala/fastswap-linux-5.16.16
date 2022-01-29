@@ -1375,7 +1375,7 @@ static unsigned int shrink_page_list(struct list_head *page_list,
 	bool do_demote_pass;
 
 	memset(stat, 0, sizeof(*stat));
-	cond_resched();
+	// cond_resched();
 	do_demote_pass = can_demote(pgdat->node_id, sc);
 
 retry:
