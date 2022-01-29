@@ -18,6 +18,8 @@ struct frontswap_ops {
 	void (*init)(unsigned); /* this swap type was just swapon'ed */
 	int (*store)(unsigned, pgoff_t, struct page *); /* store a page */
 	int (*load)(unsigned, pgoff_t, struct page *); /* load a page */
+ 	int (*load_async)(unsigned, pgoff_t, struct page *); /* load a page async */
+ 	int (*poll_load)(int); /* poll cpu for one load */
 	void (*invalidate_page)(unsigned, pgoff_t); /* page no longer needed */
 	void (*invalidate_area)(unsigned); /* swap type just swapoff'ed */
 	struct frontswap_ops *next; /* private pointer to next ops */
@@ -34,6 +36,8 @@ extern bool __frontswap_test(struct swap_info_struct *, pgoff_t);
 extern void __frontswap_init(unsigned type, unsigned long *map);
 extern int __frontswap_store(struct page *page);
 extern int __frontswap_load(struct page *page);
+extern int __frontswap_load_async(struct page *page);
+extern int __frontswap_poll_load(int cpu);
 extern void __frontswap_invalidate_page(unsigned, pgoff_t);
 extern void __frontswap_invalidate_area(unsigned);
 
@@ -96,6 +100,22 @@ static inline int frontswap_load(struct page *page)
 {
 	if (frontswap_enabled())
 		return __frontswap_load(page);
+
+	return -1;
+}
+
+static inline int frontswap_load_async(struct page *page)
+{
+	if (frontswap_enabled())
+		return __frontswap_load_async(page);
+
+	return -1;
+}
+
+static inline int frontswap_poll_load(int cpu)
+{
+	if (frontswap_enabled())
+		return __frontswap_poll_load(cpu);
 
 	return -1;
 }

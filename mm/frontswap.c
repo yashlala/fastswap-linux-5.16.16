@@ -267,8 +267,8 @@ int __frontswap_store(struct page *page)
 	 */
 	if (__frontswap_test(sis, offset)) {
 		__frontswap_clear(sis, offset);
-		for_each_frontswap_ops(ops)
-			ops->invalidate_page(type, offset);
+		// for_each_frontswap_ops(ops)
+		// 	ops->invalidate_page(type, offset);
 	}
 
 	/* Try to store in each implementation, until one succeeds. */
@@ -328,6 +328,53 @@ int __frontswap_load(struct page *page)
 }
 EXPORT_SYMBOL(__frontswap_load);
 
+// Exactly like frontswap_load, but it calls
+// `ops->load_async()` instead of `ops->load()`. 
+int __frontswap_load_async(struct page *page)
+{
+	int ret = -1;
+	swp_entry_t entry = { .val = page_private(page), };
+	int type = swp_type(entry);
+	struct swap_info_struct *sis = swap_info[type];
+	pgoff_t offset = swp_offset(entry);
+	struct frontswap_ops *ops;
+
+	VM_BUG_ON(!frontswap_ops);
+	VM_BUG_ON(!PageLocked(page));
+	VM_BUG_ON(sis == NULL);
+
+	if (!__frontswap_test(sis, offset))
+		return -1;
+
+	/* Try loading from each implementation, until one succeeds. */
+	for_each_frontswap_ops(ops) {
+		ret = ops->load_async(type, offset, page);
+		if (!ret) /* successful load */
+			break;
+	}
+	if (ret == 0)
+		inc_frontswap_loads();
+
+	return ret;
+}
+EXPORT_SYMBOL(__frontswap_load_async);
+
+// Delegate to the poll_load frontswap interface. 
+int __frontswap_poll_load(int cpu)
+{
+	struct frontswap_ops *ops;
+
+	VM_BUG_ON(!frontswap_ops);
+
+	/* Try loading from each implementation, until one succeeds. */
+	for_each_frontswap_ops(ops)
+		return ops->poll_load(cpu);
+
+	BUG();
+	return -1;
+}
+EXPORT_SYMBOL(__frontswap_poll_load);
+
 /*
  * Invalidate any data from frontswap associated with the specified swaptype
  * and offset so that a subsequent "get" will fail.
@@ -335,7 +382,7 @@ EXPORT_SYMBOL(__frontswap_load);
 void __frontswap_invalidate_page(unsigned type, pgoff_t offset)
 {
 	struct swap_info_struct *sis = swap_info[type];
-	struct frontswap_ops *ops;
+	// struct frontswap_ops *ops;
 
 	VM_BUG_ON(!frontswap_ops);
 	VM_BUG_ON(sis == NULL);
@@ -343,8 +390,8 @@ void __frontswap_invalidate_page(unsigned type, pgoff_t offset)
 	if (!__frontswap_test(sis, offset))
 		return;
 
-	for_each_frontswap_ops(ops)
-		ops->invalidate_page(type, offset);
+	// for_each_frontswap_ops(ops)
+	// 	ops->invalidate_page(type, offset);
 	__frontswap_clear(sis, offset);
 	inc_frontswap_invalidates();
 }
@@ -483,6 +530,25 @@ unsigned long frontswap_curr_pages(void)
 }
 EXPORT_SYMBOL(frontswap_curr_pages);
 
+static int show_curr_pages(struct seq_file *m, void *v)
+{
+	seq_printf(m, "%lu", frontswap_curr_pages());
+	return 0;
+}
+
+static int curr_pages_open(struct inode *inode, struct  file *file)
+{
+	return single_open(file, show_curr_pages, NULL);
+}
+
+static const struct file_operations fops = {
+	.llseek = seq_lseek,
+	.open = curr_pages_open,
+	.owner = THIS_MODULE,
+	.read = seq_read,
+	.release = single_release,
+};
+
 static int __init init_frontswap(void)
 {
 #ifdef CONFIG_DEBUG_FS
@@ -494,6 +560,7 @@ static int __init init_frontswap(void)
 	debugfs_create_u64("failed_stores", 0444, root,
 			   &frontswap_failed_stores);
 	debugfs_create_u64("invalidates", 0444, root, &frontswap_invalidates);
+	debugfs_create_file("curr_pages", S_IRUGO, root, NULL, &fops);
 #endif
 	return 0;
 }
