@@ -20,6 +20,7 @@
 #include <linux/migrate.h>
 #include <linux/vmalloc.h>
 #include <linux/swap_slots.h>
+#include <linux/frontswap.h>
 #include <linux/huge_mm.h>
 #include <linux/shmem_fs.h>
 #include "internal.h"
@@ -571,6 +572,8 @@ static unsigned int __swapin_nr_pages(unsigned long prev_offset,
 	return pages;
 }
 
+// Tells us how many pages to swap in. 
+// Doesn't do any data fetching. 
 static unsigned long swapin_nr_pages(unsigned long offset)
 {
 	static unsigned long prev_offset;
@@ -610,25 +613,38 @@ static unsigned long swapin_nr_pages(unsigned long offset)
  *
  * Caller must hold read mmap_lock if vmf->vma is not NULL.
  */
-struct page *swap_cluster_readahead(swp_entry_t entry, gfp_t gfp_mask,
-				struct vm_fault *vmf)
+// Type A. Works based on continguous physical memory. 
+// This method corresponds most closely with 4.11's swapin_readahead. 
+struct page *swap_cluster_readahead(
+		// Describes the page we're faulting on. 
+		// Contains the swap file, and swap offset. 
+		swp_entry_t entry, 
+		// Needed for kernel memory allocation. 
+		gfp_t gfp_mask, 
+		// megastructure containing fault info
+		struct vm_fault *vmf)
 {
-	struct page *page;
+	struct page *page, *faultpage;
 	unsigned long entry_offset = swp_offset(entry);
 	unsigned long offset = entry_offset;
 	unsigned long start_offset, end_offset;
 	unsigned long mask;
 	struct swap_info_struct *si = swp_swap_info(entry);
-	struct blk_plug plug;
-	bool do_poll = true, page_allocated;
+	bool page_allocated;
 	struct vm_area_struct *vma = vmf->vma;
 	unsigned long addr = vmf->address;
+	int cpu; 
+
+	// Read the faulted page synchronously
+	preempt_disable();
+	cpu = smp_processor_id();
+	faultpage = read_swap_cache_async(entry, gfp_mask, vma, addr, true);
+	preempt_enable();
 
 	mask = swapin_nr_pages(offset) - 1;
 	if (!mask)
 		goto skip;
 
-	do_poll = false;
 	/* Read a page_cluster sized and aligned cluster around offset. */
 	start_offset = offset & ~mask;
 	end_offset = offset | mask;
@@ -637,28 +653,33 @@ struct page *swap_cluster_readahead(swp_entry_t entry, gfp_t gfp_mask,
 	if (end_offset >= si->max)
 		end_offset = si->max - 1;
 
-	blk_start_plug(&plug);
 	for (offset = start_offset; offset <= end_offset ; offset++) {
+		if (offset == entry_offset)
+			continue; 
+
 		/* Ok, do the async read-ahead now */
+		// dunder => don't actually read from disk
 		page = __read_swap_cache_async(
 			swp_entry(swp_type(entry), offset),
 			gfp_mask, vma, addr, &page_allocated);
 		if (!page)
 			continue;
+
+		// If not in swapcache and we need to read from disk (dunder created
+		// new swap cache entry for us), read from disk async
 		if (page_allocated) {
 			swap_readpage(page, false);
-			if (offset != entry_offset) {
-				SetPageReadahead(page);
-				count_vm_event(SWAP_RA);
-			}
+			SetPageReadahead(page);
+			count_vm_event(SWAP_RA);
 		}
 		put_page(page);
 	}
-	blk_finish_plug(&plug);
 
 	lru_add_drain();	/* Push any new pages onto the LRU now */
++	/* prefetch pages generate interrupts and are handled async */
 skip:
-	return read_swap_cache_async(entry, gfp_mask, vma, addr, do_poll);
+	frontswap_poll_load(cpu); 
+	return faultpage; 
 }
 
 int init_swap_address_space(unsigned int type, unsigned long nr_pages)
