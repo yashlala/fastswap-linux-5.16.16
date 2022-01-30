@@ -676,7 +676,7 @@ struct page *swap_cluster_readahead(
 	}
 
 	lru_add_drain();	/* Push any new pages onto the LRU now */
-+	/* prefetch pages generate interrupts and are handled async */
+	/* prefetch pages generate interrupts and are handled async */
 skip:
 	frontswap_poll_load(cpu); 
 	return faultpage; 
