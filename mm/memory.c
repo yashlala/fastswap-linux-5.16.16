@@ -75,6 +75,7 @@
 #include <linux/perf_event.h>
 #include <linux/ptrace.h>
 #include <linux/vmalloc.h>
+#include <linux/ktime.h>
 
 #include <trace/events/kmem.h>
 
@@ -3470,6 +3471,10 @@ static vm_fault_t remove_device_exclusive_entry(struct vm_fault *vmf)
 	return 0;
 }
 
+static atomic_t major_pagefault_latency = ATOMIC_INIT(0);
+static atomic_t minor_pagefault_latency = ATOMIC_INIT(0);
+static atomic_t swap_cache_hits = ATOMIC_INIT(0);
+
 /*
  * We enter with non-exclusive mmap_lock (to exclude vma changes,
  * but allow concurrent faults), and pte mapped but not yet locked.
@@ -3489,6 +3494,10 @@ vm_fault_t do_swap_page(struct vm_fault *vmf)
 	int exclusive = 0;
 	vm_fault_t ret = 0;
 	void *shadow = NULL;
+	ktime_t start_time, end_time, delta_time;
+
+	start_time = ktime_get();
+	barrier();
 
 	if (!pte_unmap_same(vma->vm_mm, vmf->pmd, vmf->pte, vmf->orig_pte))
 		goto out;
@@ -3581,6 +3590,8 @@ vm_fault_t do_swap_page(struct vm_fault *vmf)
 		ret = VM_FAULT_HWPOISON;
 		delayacct_clear_flag(current, DELAYACCT_PF_SWAPIN);
 		goto out_release;
+	} else { 
+		atomic_inc(&swap_cache_hits);
 	}
 
 	locked = lock_page_or_retry(page, vma->vm_mm, vmf->flags);
@@ -3693,7 +3704,7 @@ unlock:
 out:
 	if (si)
 		put_swap_device(si);
-	return ret;
+	goto out_time; 
 out_nomap:
 	pte_unmap_unlock(vmf->pte, vmf->ptl);
 out_page:
@@ -3706,6 +3717,15 @@ out_release:
 	}
 	if (si)
 		put_swap_device(si);
+out_time: 
+	barrier();
+	end_time = ktime_get();
+	delta_time = ktime_sub(end_time, start_time);
+	if (ret & VM_FAULT_MAJOR) {
+		atomic_set(&major_pagefault_latency, (int) ktime_to_ns(delta_time));
+	} else {
+		atomic_set(&minor_pagefault_latency, (int) ktime_to_ns(delta_time));
+	}
 	return ret;
 }
 
@@ -5478,4 +5498,86 @@ void ptlock_free(struct page *page)
 {
 	kmem_cache_free(page_ptl_cachep, page->ptl);
 }
+#endif
+
+
+
+#ifdef CONFIG_DEBUG_FS
+
+static int major_pagefault_latency_get(void *data, u64 *val)
+{
+	*val = atomic_read(&major_pagefault_latency);
+	return 0;
+}
+static int minor_pagefault_latency_get(void *data, u64 *val)
+{
+	*val = atomic_read(&minor_pagefault_latency);
+	return 0;
+}
+static int major_pagefault_latency_set(void *data, u64 val)
+{
+	atomic_set(&major_pagefault_latency, (int) val);
+ 	return 0;
+}
+static int minor_pagefault_latency_set(void *data, u64 val)
+{
+	atomic_set(&minor_pagefault_latency, (int) val);
+ 	return 0;
+}
+
+DEFINE_SIMPLE_ATTRIBUTE(major_pagefault_latency_fops,
+		major_pagefault_latency_get, major_pagefault_latency_set, "%llu\n");
+DEFINE_SIMPLE_ATTRIBUTE(minor_pagefault_latency_fops,
+		minor_pagefault_latency_get, minor_pagefault_latency_set, "%llu\n");
+
+static int __init major_pagefault_latency_debugfs(void)
+{
+	void *ret;
+
+	ret = debugfs_create_file("major_pagefault_latency", 0644, NULL, NULL,
+			&major_pagefault_latency_fops);
+	if (!ret)
+		pr_warn("Failed to create major_pagefault_latency in debugfs");
+	return 0;
+}
+late_initcall(major_pagefault_latency_debugfs);
+
+static int __init minor_pagefault_latency_debugfs(void)
+{
+	void *ret;
+
+	ret = debugfs_create_file("minor_pagefault_latency", 0644, NULL, NULL,
+			&minor_pagefault_latency_fops);
+	if (!ret)
+		pr_warn("Failed to create minor_pagefault_latency in debugfs");
+	return 0;
+}
+late_initcall(minor_pagefault_latency_debugfs);
+
+
+static int swap_cache_hits_get(void *data, u64 *val)
+{
+	*val = atomic_read(&swap_cache_hits);
+	return 0;
+}
+static int swap_cache_hits_set(void *data, u64 val)
+{
+	atomic_set(&swap_cache_hits, (int) val);
+ 	return 0;
+}
+DEFINE_SIMPLE_ATTRIBUTE(swap_cache_hits_fops,
+		swap_cache_hits_get, swap_cache_hits_set, "%llu\n");
+
+static int __init swap_cache_hits_debugfs(void)
+{
+	void *ret;
+
+	ret = debugfs_create_file("swap_cache_hits", 0644, NULL, NULL,
+			&swap_cache_hits_fops);
+	if (!ret)
+		pr_warn("Failed to create swap_cache_hits in debugfs");
+	return 0;
+}
+late_initcall(swap_cache_hits_debugfs);
+
 #endif

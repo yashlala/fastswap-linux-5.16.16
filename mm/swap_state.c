@@ -23,6 +23,7 @@
 #include <linux/frontswap.h>
 #include <linux/huge_mm.h>
 #include <linux/shmem_fs.h>
+#include <linux/debugfs.h>
 #include "internal.h"
 
 /*
@@ -70,6 +71,8 @@ static struct {
 } swap_cache_info;
 
 static atomic_t swapin_readahead_hits = ATOMIC_INIT(4);
+static atomic_t swapin_count = ATOMIC_INIT(0);
+static atomic_t swapin_prefetch_count = ATOMIC_INIT(0);
 
 void show_swap_cache_info(void)
 {
@@ -827,6 +830,7 @@ static struct page *swap_vma_readahead(swp_entry_t fentry, gfp_t gfp_mask,
 	cpu = smp_processor_id();
 	faultpage = read_swap_cache_async(fentry, gfp_mask, vma, vmf->address, 
 			true);
+	atomic_inc(&swapin_count);
 	preempt_enable();
 
 	swap_ra_info(vmf, &ra_info);
@@ -853,6 +857,7 @@ static struct page *swap_vma_readahead(swp_entry_t fentry, gfp_t gfp_mask,
 		// dunder => do accounting only, reserve swapcache space
 		page = __read_swap_cache_async(entry, gfp_mask, vma,
 					       vmf->address, &page_allocated);
+		atomic_inc(&swapin_prefetch_count);
 		if (!page)
 			continue;
 
@@ -946,4 +951,59 @@ delete_obj:
 	return err;
 }
 subsys_initcall(swap_init_sysfs);
+#endif
+
+
+#ifdef CONFIG_DEBUG_FS
+
+static int swapin_count_get(void *data, u64 *val)
+{
+	*val = atomic_read(&swapin_count);
+	return 0;
+}
+static int swapin_prefetch_count_get(void *data, u64 *val)
+{
+	*val = atomic_read(&swapin_prefetch_count);
+	return 0;
+}
+
+static int swapin_counters_set(void *data, u64 val)
+{
+	// Strictly speaking, we should atomically update both of these
+	// values, and guard their reads and writes with a mutex.
+	// We'll assume this inaccuracy is negligible.
+	atomic_set(&swapin_count, (int) val);
+	atomic_set(&swapin_prefetch_count, (int) val);
+ 	return 0;
+}
+
+DEFINE_SIMPLE_ATTRIBUTE(swapin_count_fops,
+		swapin_count_get, swapin_counters_set, "%llu\n");
+DEFINE_SIMPLE_ATTRIBUTE(swapin_prefetch_count_fops,
+		swapin_prefetch_count_get, swapin_counters_set, "%llu\n");
+
+static int __init swapin_count_debugfs(void)
+{
+	void *ret;
+
+	ret = debugfs_create_file("swapin_count", 0644, NULL, NULL,
+			&swapin_count_fops);
+	if (!ret)
+		pr_warn("Failed to create swapin_count in debugfs");
+	return 0;
+}
+late_initcall(swapin_count_debugfs);
+
+static int __init swapin_prefetch_count_debugfs(void)
+{
+	void *ret;
+
+	ret = debugfs_create_file("swapin_prefetch_count", 0644, NULL, NULL,
+			&swapin_prefetch_count_fops);
+	if (!ret)
+		pr_warn("Failed to create swapin_prefetch_count in debugfs");
+	return 0;
+}
+late_initcall(swapin_prefetch_count_debugfs);
+
 #endif
