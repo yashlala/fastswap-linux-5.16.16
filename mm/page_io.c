@@ -366,6 +366,13 @@ int swap_readpage(struct page *page, bool synchronous)
 	VM_BUG_ON_PAGE(!PageLocked(page), page);
 	VM_BUG_ON_PAGE(PageUptodate(page), page);
 
+     // When the swap subsystem needs to swap-in a page (swap_readpage()),
+     // it first calls frontswap_load() which checks the frontswap_map to
+     // see if the page was earlier accepted by the frontswap backend.  If
+     // it was, the page of data is filled from the frontswap backend and
+     // the swap-in is complete.  If not, the normal swap-in code is
+     // executed to obtain the page of data from the real swap device.
+
 	/*
 	 * Count submission time as memory stall. When the device is congested,
 	 * or the submitting cgroup IO-throttled, submission can be a
@@ -373,10 +380,21 @@ int swap_readpage(struct page *page, bool synchronous)
 	 */
 	psi_memstall_enter(&pflags);
 
-	if (frontswap_load(page) == 0) {
-		SetPageUptodate(page);
-		unlock_page(page);
-		goto out;
+	if (synchronous) { 
+		// We changed up FastSwap so it doesn't immediately error on a failed
+		// synchronous frontswap load. This used to be: 
+		// BUG_ON(frontswap_load(page));
+		if (frontswap_load(page) == 0) {
+			// SetPageUptodate(page); // TODO: Why FastSwap remove this? 
+			// unlock_page(page);
+			goto out;
+		}
+	} else { 
+		if (frontswap_load_async(page) == 0) {
+			// SetPageUptodate(page); // TODO: Why FastSwap remove this? 
+			// unlock_page(page);
+			goto out;
+		} 
 	}
 
 	if (data_race(sis->flags & SWP_FS_OPS)) {
