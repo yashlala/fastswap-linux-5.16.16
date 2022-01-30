@@ -809,9 +809,10 @@ static void swap_ra_info(struct vm_fault *vmf,
 static struct page *swap_vma_readahead(swp_entry_t fentry, gfp_t gfp_mask,
 				       struct vm_fault *vmf)
 {
-	struct blk_plug plug;
+	// Type B. This swaps based on contiguous virtual pages. 
+	// It's new to this kernel version, not in 4.11. 
 	struct vm_area_struct *vma = vmf->vma;
-	struct page *page;
+	struct page *page, *faultpage;
 	pte_t *pte, pentry;
 	swp_entry_t entry;
 	unsigned int i;
@@ -819,14 +820,20 @@ static struct page *swap_vma_readahead(swp_entry_t fentry, gfp_t gfp_mask,
 	struct vma_swap_readahead ra_info = {
 		.win = 1,
 	};
+	int cpu; 
+
+	// Read the faulted page synchronously
+	preempt_disable();
+	cpu = smp_processor_id();
+	faultpage = read_swap_cache_async(fentry, gfp_mask, vma, vmf->address, 
+			true);
+	preempt_enable();
 
 	swap_ra_info(vmf, &ra_info);
-	if (ra_info.win == 1)
+	if (ra_info.win == 1) // read faulted synchronously, no readahead
 		goto skip;
 
-	blk_start_plug(&plug);
-	for (i = 0, pte = ra_info.ptes; i < ra_info.nr_pte;
-	     i++, pte++) {
+	for (i = 0, pte = ra_info.ptes; i < ra_info.nr_pte; i++, pte++) {
 		pentry = *pte;
 		if (pte_none(pentry))
 			continue;
@@ -835,24 +842,33 @@ static struct page *swap_vma_readahead(swp_entry_t fentry, gfp_t gfp_mask,
 		entry = pte_to_swp_entry(pentry);
 		if (unlikely(non_swap_entry(entry)))
 			continue;
+
+		// Skip the page we faulted on. 
+		// I don't understand the ra_info struct. Bugs may lurk here. 
+		// TODO: Check if this causes problems. Switch to entry offset based
+		// method instead. 
+		if (i == ra_info.offset) 
+			 continue; 
+
+		// dunder => do accounting only, reserve swapcache space
 		page = __read_swap_cache_async(entry, gfp_mask, vma,
 					       vmf->address, &page_allocated);
 		if (!page)
 			continue;
+
+		// If had to make new swapcache space (not in sc rn), read from disk
+		// asynchronously
 		if (page_allocated) {
 			swap_readpage(page, false);
-			if (i != ra_info.offset) {
-				SetPageReadahead(page);
-				count_vm_event(SWAP_RA);
-			}
+			SetPageReadahead(page);
+			count_vm_event(SWAP_RA);
 		}
 		put_page(page);
 	}
-	blk_finish_plug(&plug);
 	lru_add_drain();
 skip:
-	return read_swap_cache_async(fentry, gfp_mask, vma, vmf->address,
-				     ra_info.win == 1);
+	frontswap_poll_load(cpu);
+	return faultpage; 
 }
 
 /**
