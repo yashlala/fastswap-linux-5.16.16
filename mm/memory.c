@@ -68,6 +68,8 @@
 #include <linux/debugfs.h>
 #include <linux/userfaultfd_k.h>
 #include <linux/dax.h>
+#include <linux/frontswap.h>
+#include <linux/delay.h>
 #include <linux/oom.h>
 #include <linux/numa.h>
 #include <linux/perf_event.h>
