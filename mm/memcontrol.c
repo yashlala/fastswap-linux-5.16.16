@@ -71,6 +71,8 @@
 
 #include <trace/events/vmscan.h>
 
+#define FASTSWAP_RECLAIM_CPU 7
+
 struct cgroup_subsys memory_cgrp_subsys __read_mostly;
 EXPORT_SYMBOL(memory_cgrp_subsys);
 
@@ -2293,12 +2295,23 @@ static unsigned long reclaim_high(struct mem_cgroup *memcg,
 	return nr_reclaimed;
 }
 
+#define MAX_RECLAIM_OFFLOAD 2048UL
 static void high_work_func(struct work_struct *work)
 {
-	struct mem_cgroup *memcg;
+	struct mem_cgroup *memcg = container_of(work, struct mem_cgroup, high_work);
+	unsigned long high = memcg->high;
+	unsigned long nr_pages = page_counter_read(&memcg->memory);
+	unsigned long reclaim;
 
-	memcg = container_of(work, struct mem_cgroup, high_work);
-	reclaim_high(memcg, MEMCG_CHARGE_BATCH, GFP_KERNEL);
+	if (nr_pages > high) {
+		reclaim = min(nr_pages - high, MAX_RECLAIM_OFFLOAD);
+
+		/* reclaim_high only reclaims iff nr_pages > high */
+		reclaim_high(memcg, reclaim, GFP_KERNEL);
+	}
+
+	if (page_counter_read(&memcg->memory) > memcg->high)
+		schedule_work_on(FASTSWAP_RECLAIM_CPU, &memcg->high_work);
 }
 
 /*
@@ -2668,26 +2681,42 @@ done_restock:
 	 */
 	do {
 		bool mem_high, swap_high;
+		unsigned long high_mem_limit;
+		unsigned long curr_mem_pages;
+		unsigned long excess;
 
-		mem_high = page_counter_read(&memcg->memory) >
-			READ_ONCE(memcg->memory.high);
+		curr_mem_pages = page_counter_read(&memcg->memory);
+		high_mem_limit = READ_ONCE(memcg->memory.high);
+
+		mem_high = curr_pages > high_limit; 
 		swap_high = page_counter_read(&memcg->swap) >
 			READ_ONCE(memcg->swap.high);
 
-		/* Don't bother a random interrupted task */
-		if (in_interrupt()) {
-			if (mem_high) {
-				schedule_work(&memcg->high_work);
-				break;
+		if (mem_high) { 
+			excess = curr_mem_pages - high_mem_limit;
+
+			/* regardless of whether we use app cpu or worker, we evict
+			 * at most MAX_RECLAIM_OFFLOAD pages at a time */
+			if (excess > MAX_RECLAIM_OFFLOAD && !in_interrupt()) {
+				current->memcg_nr_pages_over_high += MAX_RECLAIM_OFFLOAD;
+				set_notify_resume(current);
+			} else {
+				schedule_work_on(FASTSWAP_RECLAIM_CPU, &memcg->high_work);
 			}
-			continue;
+
+			break;
 		}
 
-		if (mem_high || swap_high) {
+		if (swap_high) {
+			// TODO: We left the swap cgroup code in. 
+			// This may prevent expansion of the swap (ie far) memory if we've
+			// given a cgroup limit. Test to make sure this works, because we
+			// don't understand the set_notify_resume part. 
+
 			/*
 			 * The allocating tasks in this cgroup will need to do
 			 * reclaim or be throttled to prevent further growth
-			 * of the memory or swap footprints.
+			 * of the swap footprints.
 			 *
 			 * Target some best-effort fairness between the tasks,
 			 * and distribute reclaim work and delay penalties
@@ -6231,30 +6260,37 @@ static ssize_t memory_high_write(struct kernfs_open_file *of,
 
 	page_counter_set_high(&memcg->memory, high);
 
-	for (;;) {
-		unsigned long nr_pages = page_counter_read(&memcg->memory);
-		unsigned long reclaimed;
+	// We've removed all of the following logic. 
+	// May be some issues here regarding pending signals and "draining" CPU
+	// caches. TODO: If we run into problems, then loop until everything is
+	// drained. 
 
-		if (nr_pages <= high)
-			break;
+	// for (;;) {
+	// 	unsigned long nr_pages = page_counter_read(&memcg->memory);
+	// 	unsigned long reclaimed;
+	//
+	// 	if (nr_pages <= high)
+	// 		break;
+	//
+	// 	if (signal_pending(current))
+	// 		break;
+	//
+	// 	if (!drained) {
+	// 		drain_all_stock(memcg);
+	// 		drained = true;
+	// 		continue;
+	// 	}
+	//
+	// 	reclaimed = try_to_free_mem_cgroup_pages(memcg, nr_pages - high,
+	// 						 GFP_KERNEL, true);
+	//
+	// 	if (!reclaimed && !nr_retries--)
+	// 		break;
+	// }
 
-		if (signal_pending(current))
-			break;
-
-		if (!drained) {
-			drain_all_stock(memcg);
-			drained = true;
-			continue;
-		}
-
-		reclaimed = try_to_free_mem_cgroup_pages(memcg, nr_pages - high,
-							 GFP_KERNEL, true);
-
-		if (!reclaimed && !nr_retries--)
-			break;
-	}
-
+	/* concurrent eviction on shrink */
 	memcg_wb_domain_size_changed(memcg);
+	schedule_work_on(FASTSWAP_RECLAIM_CPU, &memcg->high_work);
 	return nbytes;
 }
 
