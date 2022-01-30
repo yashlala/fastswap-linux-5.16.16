@@ -2299,7 +2299,7 @@ static unsigned long reclaim_high(struct mem_cgroup *memcg,
 static void high_work_func(struct work_struct *work)
 {
 	struct mem_cgroup *memcg = container_of(work, struct mem_cgroup, high_work);
-	unsigned long high = memcg->high;
+	unsigned long high = READ_ONCE(memcg->memory.high);
 	unsigned long nr_pages = page_counter_read(&memcg->memory);
 	unsigned long reclaim;
 
@@ -2310,7 +2310,7 @@ static void high_work_func(struct work_struct *work)
 		reclaim_high(memcg, reclaim, GFP_KERNEL);
 	}
 
-	if (page_counter_read(&memcg->memory) > memcg->high)
+	if (page_counter_read(&memcg->memory) > READ_ONCE(memcg->memory.high))
 		schedule_work_on(FASTSWAP_RECLAIM_CPU, &memcg->high_work);
 }
 
@@ -2688,7 +2688,7 @@ done_restock:
 		curr_mem_pages = page_counter_read(&memcg->memory);
 		high_mem_limit = READ_ONCE(memcg->memory.high);
 
-		mem_high = curr_pages > high_limit; 
+		mem_high = curr_mem_pages > high_mem_limit; 
 		swap_high = page_counter_read(&memcg->swap) >
 			READ_ONCE(memcg->swap.high);
 
@@ -6248,8 +6248,9 @@ static ssize_t memory_high_write(struct kernfs_open_file *of,
 				 char *buf, size_t nbytes, loff_t off)
 {
 	struct mem_cgroup *memcg = mem_cgroup_from_css(of_css(of));
-	unsigned int nr_retries = MAX_RECLAIM_RETRIES;
-	bool drained = false;
+	// TODO: Verify that we don't need this drainage. 
+	// bool drained = false;
+	// unsigned int nr_retries = MAX_RECLAIM_RETRIES;
 	unsigned long high;
 	int err;
 
