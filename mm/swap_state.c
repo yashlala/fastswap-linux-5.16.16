@@ -642,6 +642,7 @@ struct page *swap_cluster_readahead(
 	preempt_disable();
 	cpu = smp_processor_id();
 	faultpage = read_swap_cache_async(entry, gfp_mask, vma, addr, true);
+	atomic_inc(&swapin_count);
 	preempt_enable();
 
 	mask = swapin_nr_pages(offset) - 1;
@@ -674,6 +675,7 @@ struct page *swap_cluster_readahead(
 			swap_readpage(page, false);
 			SetPageReadahead(page);
 			count_vm_event(SWAP_RA);
+			atomic_inc(&swapin_prefetch_count);
 		}
 		put_page(page);
 	}
