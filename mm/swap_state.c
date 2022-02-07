@@ -326,7 +326,7 @@ void free_pages_and_swap_cache(struct page **pages, int nr)
 
 static inline bool swap_use_vma_readahead(void)
 {
-	return READ_ONCE(enable_vma_readahead) && !atomic_read(&nr_rotate_swap);
+	return READ_ONCE(enable_vma_readahead); 
 }
 
 /*
