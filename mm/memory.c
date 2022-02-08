@@ -5594,20 +5594,27 @@ static int measure_timer_overhead(int n)
 	ktime_t with_timer, without_timer; 
 
 	start = ktime_get(); 
+	barrier(); 
 	tmp_int = 0; 
 	for (i = 0; i < n; i++) {
 		tmp_int += i; 
+		barrier(); 
 	}
+	barrier(); 
 	end = ktime_get();
 	with_timer= ktime_sub(end, start);
 
 	start = ktime_get(); 
+	barrier(); 
 	tmp_int = 0; 
 	for (i = 0; i < n; i++) {
 		tmp_int += i; 
+		barrier(); 
 		tmp_time = ktime_get(); 
 	}
+	barrier(); 
 	end = ktime_get();
+	barrier(); 
 	without_timer= ktime_sub(end, start);
 
 	return (int) ktime_to_ns(ktime_sub(with_timer, without_timer)); 
