@@ -5581,3 +5581,63 @@ static int __init swap_cache_hits_debugfs(void)
 late_initcall(swap_cache_hits_debugfs);
 
 #endif
+
+#ifdef CONFIG_DEBUG_FS
+
+static atomic_t timer_overhead = ATOMIC_INIT(0);
+
+#pragma GCC optimize ("O0")
+static int measure_timer_overhead(int n)
+{
+	int i, tmp_int; 
+	ktime_t start, end, tmp_time; 
+	ktime_t with_timer, without_timer; 
+
+	start = ktime_get(); 
+	tmp_int = 0; 
+	for (i = 0; i < n; i++) {
+		tmp_int += i; 
+	}
+	end = ktime_get();
+	with_timer= ktime_sub(end, start);
+
+	start = ktime_get(); 
+	tmp_int = 0; 
+	for (i = 0; i < n; i++) {
+		tmp_int += i; 
+		tmp_time = ktime_get(); 
+	}
+	end = ktime_get();
+	without_timer= ktime_sub(end, start);
+
+	return (int) ktime_to_ns(ktime_sub(with_timer, without_timer)); 
+}
+
+static int timer_overhead_get(void *data, u64 *val)
+{
+	*val = atomic_read(&timer_overhead);
+	return 0;
+}
+
+static int timer_overhead_set(void *data, u64 val)
+{
+	atomic_set(&timer_overhead, measure_timer_overhead((int) val));
+ 	return 0;
+}
+
+DEFINE_SIMPLE_ATTRIBUTE(timer_overhead_fops,
+		timer_overhead_get, timer_overhead_set, "%llu\n");
+
+static int __init timer_overhead_debugfs(void)
+{
+	void *ret;
+
+	ret = debugfs_create_file("timer_overhead", 0644, NULL, NULL,
+			&timer_overhead_fops);
+	if (!ret)
+		pr_warn("Failed to create timer_overhead in debugfs");
+	return 0;
+}
+late_initcall(timer_overhead_debugfs);
+
+#endif
