@@ -5602,7 +5602,7 @@ static int measure_timer_overhead(int n)
 	}
 	barrier(); 
 	end = ktime_get();
-	with_timer= ktime_sub(end, start);
+	without_timer= ktime_sub(end, start);
 
 	start = ktime_get(); 
 	barrier(); 
@@ -5615,7 +5615,7 @@ static int measure_timer_overhead(int n)
 	barrier(); 
 	end = ktime_get();
 	barrier(); 
-	without_timer= ktime_sub(end, start);
+	with_timer= ktime_sub(end, start);
 
 	return (int) ktime_to_ns(ktime_sub(with_timer, without_timer)); 
 }
