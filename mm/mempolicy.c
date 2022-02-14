@@ -2163,7 +2163,7 @@ out:
 	barrier(); 
 
 	diff = ktime_sub(end, start); 
-	atomic_set(&alloc_page_vma_overhead, (int) ktime_to_ns(diff));
+	atomic_set(&alloc_pages_vma_overhead, (int) ktime_to_ns(diff));
 
 	return page;
 }
