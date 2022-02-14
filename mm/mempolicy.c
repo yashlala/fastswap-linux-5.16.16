@@ -2066,6 +2066,7 @@ static struct page *alloc_pages_preferred_many(gfp_t gfp, unsigned int order,
 	return page;
 }
 
+static atomic_t alloc_page_vma_overhead = ATOMIC_INIT(0); 
 /**
  * alloc_pages_vma - Allocate a page for a VMA.
  * @gfp: GFP flags.
@@ -2089,6 +2090,10 @@ struct page *alloc_pages_vma(gfp_t gfp, int order, struct vm_area_struct *vma,
 	struct page *page;
 	int preferred_nid;
 	nodemask_t *nmask;
+	ktime_t start, end, diff; 
+
+	start = WRITE_ONCE(ktime_get()); 
+	barrier(); 
 
 	pol = get_vma_policy(vma, addr);
 
@@ -2151,6 +2156,14 @@ struct page *alloc_pages_vma(gfp_t gfp, int order, struct vm_area_struct *vma,
 	page = __alloc_pages(gfp, order, preferred_nid, nmask);
 	mpol_cond_put(pol);
 out:
+
+	barrier(); 
+	end = WRITE_ONCE(ktime_get()); 
+	barrier(); 
+
+	diff = ktime_sub(end, start); 
+	atomic_set(&alloc_page_vma_overhead, (int) ktime_to_ns(diff));
+
 	return page;
 }
 EXPORT_SYMBOL(alloc_pages_vma);
@@ -3034,4 +3047,35 @@ delete_obj:
 	return err;
 }
 subsys_initcall(numa_init_sysfs);
+#endif
+
+#ifdef CONFIG_DEBUG_FS
+
+static int alloc_pages_vma_overhead_get(void *data, u64 *val)
+{
+	*val = atomic_read(&alloc_pages_vma_overhead);
+	return 0;
+}
+
+static int alloc_pages_vma_overhead_set(void *data, u64 val)
+{
+	atomic_set(&alloc_pages_vma_overhead, (int) val);
+ 	return 0;
+}
+
+DEFINE_SIMPLE_ATTRIBUTE(alloc_pages_vma_overhead_fops,
+		alloc_pages_vma_overhead_get, alloc_pages_vma_overhead_set, "%llu\n");
+
+static int __init alloc_pages_vma_overhead_debugfs(void)
+{
+	void *ret;
+
+	ret = debugfs_create_file("alloc_pages_vma_overhead", 0644, NULL, NULL,
+			&alloc_pages_vma_overhead_fops);
+	if (!ret)
+		pr_warn("Failed to create alloc_pages_vma_overhead in debugfs");
+	return 0;
+}
+late_initcall(alloc_pages_vma_overhead_debugfs);
+
 #endif
