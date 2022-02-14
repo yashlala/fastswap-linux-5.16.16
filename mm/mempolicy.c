@@ -102,6 +102,7 @@
 #include <linux/mmu_notifier.h>
 #include <linux/printk.h>
 #include <linux/swapops.h>
+#include <linux/debugfs.h>
 
 #include <asm/tlbflush.h>
 #include <linux/uaccess.h>
@@ -2066,7 +2067,7 @@ static struct page *alloc_pages_preferred_many(gfp_t gfp, unsigned int order,
 	return page;
 }
 
-static atomic_t alloc_page_vma_overhead = ATOMIC_INIT(0); 
+static atomic_t alloc_pages_vma_overhead = ATOMIC_INIT(0); 
 /**
  * alloc_pages_vma - Allocate a page for a VMA.
  * @gfp: GFP flags.
@@ -2092,7 +2093,7 @@ struct page *alloc_pages_vma(gfp_t gfp, int order, struct vm_area_struct *vma,
 	nodemask_t *nmask;
 	ktime_t start, end, diff; 
 
-	start = WRITE_ONCE(ktime_get()); 
+	WRITE_ONCE(start, ktime_get()); 
 	barrier(); 
 
 	pol = get_vma_policy(vma, addr);
@@ -2158,7 +2159,7 @@ struct page *alloc_pages_vma(gfp_t gfp, int order, struct vm_area_struct *vma,
 out:
 
 	barrier(); 
-	end = WRITE_ONCE(ktime_get()); 
+	WRITE_ONCE(end, ktime_get()); 
 	barrier(); 
 
 	diff = ktime_sub(end, start); 
