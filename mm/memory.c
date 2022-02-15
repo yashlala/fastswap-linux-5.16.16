@@ -5477,3 +5477,113 @@ void ptlock_free(struct page *page)
 	kmem_cache_free(page_ptl_cachep, page->ptl);
 }
 #endif
+
+#ifdef CONFIG_DEBUG_FS
+
+static atomic_t timer_overhead = ATOMIC_INIT(0);
+
+#pragma GCC optimize ("O0")
+static int measure_timer_overhead(int n)
+{
+	int i, tmp_int; 
+	ktime_t start, end, tmp_time; 
+	ktime_t with_timer, without_timer; 
+
+	start = ktime_get(); 
+	barrier(); 
+	tmp_int = 0; 
+	for (i = 0; i < n; i++) {
+		tmp_int += i; 
+		barrier(); 
+	}
+	barrier(); 
+	end = ktime_get();
+	without_timer= ktime_sub(end, start);
+
+	start = ktime_get(); 
+	barrier(); 
+	tmp_int = 0; 
+	for (i = 0; i < n; i++) {
+		tmp_int += i; 
+		barrier(); 
+		tmp_time = ktime_get(); 
+	}
+	barrier(); 
+	end = ktime_get();
+	barrier(); 
+	with_timer= ktime_sub(end, start);
+
+	return (int) ktime_to_ns(ktime_sub(with_timer, without_timer)); 
+}
+
+static int timer_overhead_get(void *data, u64 *val)
+{
+	*val = atomic_read(&timer_overhead);
+	return 0;
+}
+
+static int timer_overhead_set(void *data, u64 val)
+{
+	atomic_set(&timer_overhead, measure_timer_overhead((int) val));
+ 	return 0;
+}
+
+DEFINE_SIMPLE_ATTRIBUTE(timer_overhead_fops,
+		timer_overhead_get, timer_overhead_set, "%llu\n");
+
+static int __init timer_overhead_debugfs(void)
+{
+	void *ret;
+
+	ret = debugfs_create_file("timer_overhead", 0644, NULL, NULL,
+			&timer_overhead_fops);
+	if (!ret)
+		pr_warn("Failed to create timer_overhead in debugfs");
+	return 0;
+}
+late_initcall(timer_overhead_debugfs);
+
+static atomic_t dmesg_overhead = ATOMIC_INIT(0);
+
+#pragma GCC optimize ("O0")
+static int measure_dmesg_overhead(int n)
+{
+	ktime_t start, end; 
+
+	start = READ_ONCE(ktime_get()); 
+	barrier(); 
+	pr_info("measure_dmesg_overhead\tignore this message\n"); 
+	barrier(); 
+	WRITE_ONCE(end, ktime_get()); 
+
+	return (int) ktime_to_ns(ktime_sub(end, start)); 
+}
+
+static int dmesg_overhead_get(void *data, u64 *val)
+{
+	*val = atomic_read(&dmesg_overhead);
+	return 0;
+}
+
+static int dmesg_overhead_set(void *data, u64 val)
+{
+	atomic_set(&dmesg_overhead, measure_dmesg_overhead((int) val));
+ 	return 0;
+}
+
+DEFINE_SIMPLE_ATTRIBUTE(dmesg_overhead_fops,
+		dmesg_overhead_get, dmesg_overhead_set, "%llu\n");
+
+static int __init dmesg_overhead_debugfs(void)
+{
+	void *ret;
+
+	ret = debugfs_create_file("dmesg_overhead", 0644, NULL, NULL,
+			&dmesg_overhead_fops);
+	if (!ret)
+		pr_warn("Failed to create dmesg_overhead in debugfs");
+	return 0;
+}
+late_initcall(dmesg_overhead_debugfs);
+
+#endif
