@@ -2091,7 +2091,8 @@ struct page *alloc_pages_vma(gfp_t gfp, int order, struct vm_area_struct *vma,
 	struct page *page;
 	int preferred_nid;
 	nodemask_t *nmask;
-	ktime_t start, end, diff; 
+	ktime_t start, end; 
+	int diff_ns; 
 
 	WRITE_ONCE(start, ktime_get()); 
 	barrier(); 
@@ -2162,8 +2163,9 @@ out:
 	WRITE_ONCE(end, ktime_get()); 
 	barrier(); 
 
-	diff = ktime_sub(end, start); 
-	atomic_set(&alloc_pages_vma_overhead, (int) ktime_to_ns(diff));
+	diff_ns = (int) ktime_to_ns(ktime_sub(end, start))
+	atomic_set(&alloc_pages_vma_overhead, diff_ns);
+	pr_info("alloc_page_vma latency\t%d\n", diff_ns); 
 
 	return page;
 }
