@@ -5647,4 +5647,47 @@ static int __init timer_overhead_debugfs(void)
 }
 late_initcall(timer_overhead_debugfs);
 
+static atomic_t dmesg_overhead = ATOMIC_INIT(0);
+
+#pragma GCC optimize ("O0")
+static int measure_dmesg_overhead(int n)
+{
+	ktime_t start, end; 
+
+	start = READ_ONCE(ktime_get()); 
+	barrier(); 
+	pr_info("measure_dmesg_overhead\tignore this message\n"); 
+	barrier(); 
+	WRITE_ONCE(end, ktime_get()); 
+
+	return (int) ktime_to_ns(ktime_sub(end, start)); 
+}
+
+static int dmesg_overhead_get(void *data, u64 *val)
+{
+	*val = atomic_read(&dmesg_overhead);
+	return 0;
+}
+
+static int dmesg_overhead_set(void *data, u64 val)
+{
+	atomic_set(&dmesg_overhead, measure_dmesg_overhead((int) val));
+ 	return 0;
+}
+
+DEFINE_SIMPLE_ATTRIBUTE(dmesg_overhead_fops,
+		dmesg_overhead_get, dmesg_overhead_set, "%llu\n");
+
+static int __init dmesg_overhead_debugfs(void)
+{
+	void *ret;
+
+	ret = debugfs_create_file("dmesg_overhead", 0644, NULL, NULL,
+			&dmesg_overhead_fops);
+	if (!ret)
+		pr_warn("Failed to create dmesg_overhead in debugfs");
+	return 0;
+}
+late_initcall(dmesg_overhead_debugfs);
+
 #endif
