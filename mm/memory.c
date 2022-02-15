@@ -5654,7 +5654,7 @@ static int measure_dmesg_overhead(int n)
 {
 	ktime_t start, end; 
 
-	start = READ_ONCE(ktime_get()); 
+	WRITE_ONCE(start, ktime_get()); 
 	barrier(); 
 	pr_info("measure_dmesg_overhead\tignore this message\n"); 
 	barrier(); 
