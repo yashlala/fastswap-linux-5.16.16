@@ -2163,7 +2163,7 @@ out:
 	WRITE_ONCE(end, ktime_get()); 
 	barrier(); 
 
-	diff_ns = (int) ktime_to_ns(ktime_sub(end, start))
+	diff_ns = (int) ktime_to_ns(ktime_sub(end, start));
 	atomic_set(&alloc_pages_vma_overhead, diff_ns);
 	pr_info("alloc_page_vma latency\t%d\n", diff_ns); 
 
