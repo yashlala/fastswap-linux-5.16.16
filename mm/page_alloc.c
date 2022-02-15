@@ -4893,6 +4893,7 @@ __alloc_pages_slowpath(gfp_t gfp_mask, unsigned int order,
 		gfp_mask &= ~__GFP_ATOMIC;
 
 retry_cpuset:
+	pr_info("alloc_page_vma path\t__FILE__:__LINE__\n"); 
 	compaction_retries = 0;
 	no_progress_loops = 0;
 	compact_priority = DEF_COMPACT_PRIORITY;
@@ -4916,6 +4917,7 @@ retry_cpuset:
 	if (!ac->preferred_zoneref->zone)
 		goto nopage;
 
+	// This may be what's causing high latencies. 
 	if (alloc_flags & ALLOC_KSWAPD)
 		wake_all_kswapds(order, gfp_mask, ac);
 
@@ -4924,8 +4926,10 @@ retry_cpuset:
 	 * that first
 	 */
 	page = get_page_from_freelist(gfp_mask, order, alloc_flags, ac);
-	if (page)
+	if (page) { 
+		pr_info("alloc_page_vma path\t__FILE__:__LINE__\n"); 
 		goto got_pg;
+	}
 
 	/*
 	 * For costly allocations, try direct compaction first, as it's likely
@@ -4944,8 +4948,10 @@ retry_cpuset:
 						alloc_flags, ac,
 						INIT_COMPACT_PRIORITY,
 						&compact_result);
-		if (page)
+		if (page) { 
+			pr_info("alloc_page_vma path\t__FILE__:__LINE__\n"); 
 			goto got_pg;
+		}
 
 		/*
 		 * Checks for costly allocations with __GFP_NORETRY, which
@@ -5004,8 +5010,10 @@ retry:
 
 	/* Attempt with potentially adjusted zonelist and alloc_flags */
 	page = get_page_from_freelist(gfp_mask, order, alloc_flags, ac);
-	if (page)
+	if (page) { 
+		pr_info("alloc_page_vma path\t__FILE__:__LINE__\n"); 
 		goto got_pg;
+	}
 
 	/* Caller is not willing to reclaim, we can't balance anything */
 	if (!can_direct_reclaim)
@@ -5018,14 +5026,18 @@ retry:
 	/* Try direct reclaim and then allocating */
 	page = __alloc_pages_direct_reclaim(gfp_mask, order, alloc_flags, ac,
 							&did_some_progress);
-	if (page)
+	if (page) { 
+		pr_info("alloc_page_vma path\t__FILE__:__LINE__\n"); 
 		goto got_pg;
+	}
 
 	/* Try direct compaction and then allocating */
 	page = __alloc_pages_direct_compact(gfp_mask, order, alloc_flags, ac,
 					compact_priority, &compact_result);
-	if (page)
+	if (page) { 
+		pr_info("alloc_page_vma path\t__FILE__:__LINE__\n"); 
 		goto got_pg;
+	}
 
 	/* Do not loop if specifically requested */
 	if (gfp_mask & __GFP_NORETRY)
@@ -5039,8 +5051,10 @@ retry:
 		goto nopage;
 
 	if (should_reclaim_retry(gfp_mask, order, ac, alloc_flags,
-				 did_some_progress > 0, &no_progress_loops))
+				 did_some_progress > 0, &no_progress_loops)) { 
+		pr_info("alloc_page_vma path\t__FILE__:__LINE__\n"); 
 		goto retry;
+	}
 
 	/*
 	 * It doesn't make any sense to retry for the compaction if the order-0
@@ -5061,8 +5075,10 @@ retry:
 
 	/* Reclaim has failed us, start killing things */
 	page = __alloc_pages_may_oom(gfp_mask, order, ac, &did_some_progress);
-	if (page)
+	if (page) { 
+		pr_info("alloc_page_vma path\t__FILE__:__LINE__\n"); 
 		goto got_pg;
+	}
 
 	/* Avoid allocations with no watermarks from looping endlessly */
 	if (tsk_is_oom_victim(current) &&
@@ -5073,13 +5089,16 @@ retry:
 	/* Retry as long as the OOM killer is making progress */
 	if (did_some_progress) {
 		no_progress_loops = 0;
+		pr_info("alloc_page_vma path\t__FILE__:__LINE__\n"); 
 		goto retry;
 	}
 
 nopage:
 	/* Deal with possible cpuset update races before we fail */
-	if (check_retry_cpuset(cpuset_mems_cookie, ac))
+	if (check_retry_cpuset(cpuset_mems_cookie, ac)) { 
+		pr_info("alloc_page_vma path\t__FILE__:__LINE__\n"); 
 		goto retry_cpuset;
+	}
 
 	/*
 	 * Make sure that __GFP_NOFAIL request doesn't leak out and make sure
@@ -5115,13 +5134,17 @@ nopage:
 		 * the situation worse
 		 */
 		page = __alloc_pages_cpuset_fallback(gfp_mask, order, ALLOC_HARDER, ac);
-		if (page)
+		if (page) { 
+			pr_info("alloc_page_vma path\t__FILE__:__LINE__\n"); 
 			goto got_pg;
+		}
 
 		cond_resched();
+		pr_info("alloc_page_vma path\t__FILE__:__LINE__\n"); 
 		goto retry;
 	}
 fail:
+	pr_info("alloc_page_vma path\t__FILE__:__LINE__\n"); 
 	warn_alloc(gfp_mask, ac->nodemask,
 			"page allocation failure: order:%u", order);
 got_pg:
@@ -5379,8 +5402,10 @@ struct page *__alloc_pages(gfp_t gfp, unsigned int order, int preferred_nid,
 
 	/* First allocation attempt */
 	page = get_page_from_freelist(alloc_gfp, order, alloc_flags, &ac);
-	if (likely(page))
+	if (likely(page)) { 
+		pr_info("alloc_page_vma path\t__FILE__:__LINE__\n"); 
 		goto out;
+	}
 
 	alloc_gfp = gfp;
 	ac.spread_dirty_pages = false;

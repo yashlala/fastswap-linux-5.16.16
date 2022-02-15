@@ -2158,7 +2158,6 @@ struct page *alloc_pages_vma(gfp_t gfp, int order, struct vm_area_struct *vma,
 	page = __alloc_pages(gfp, order, preferred_nid, nmask);
 	mpol_cond_put(pol);
 out:
-
 	barrier(); 
 	WRITE_ONCE(end, ktime_get()); 
 	barrier(); 
