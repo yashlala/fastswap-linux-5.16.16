@@ -5548,15 +5548,35 @@ static atomic_t dmesg_overhead = ATOMIC_INIT(0);
 #pragma GCC optimize ("O0")
 static int measure_dmesg_overhead(int n)
 {
-	ktime_t start, end; 
+	int i, tmp_int; 
+	ktime_t start, end, tmp_time; 
+	ktime_t with_dmesg, without_dmesg; 
 
 	WRITE_ONCE(start, ktime_get()); 
 	barrier(); 
-	pr_info("measure_dmesg_overhead\tignore this message\n"); 
+	tmp_int = 0; 
+	for (i = 0; i < n; i++) {
+		tmp_int += i; 
+		barrier(); 
+	}
 	barrier(); 
 	WRITE_ONCE(end, ktime_get()); 
+	without_dmesg= ktime_sub(end, start);
 
-	return (int) ktime_to_ns(ktime_sub(end, start)); 
+	WRITE_ONCE(start, ktime_get()); 
+	barrier(); 
+	tmp_int = 0; 
+	for (i = 0; i < n; i++) {
+		tmp_int += i; 
+		pr_info("measure_dmesg_overhead\tignore this message\n"); 
+		barrier(); 
+	}
+	barrier(); 
+	WRITE_ONCE(end, ktime_get()); 
+	barrier(); 
+	with_dmesg= ktime_sub(end, start);
+
+	return (int) ktime_to_ns(ktime_sub(with_dmesg, without_dmesg)); 
 }
 
 static int dmesg_overhead_get(void *data, u64 *val)
