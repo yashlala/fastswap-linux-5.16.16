@@ -5653,7 +5653,7 @@ static atomic_t dmesg_overhead = ATOMIC_INIT(0);
 static int measure_dmesg_overhead(int n)
 {
 	int i, tmp_int; 
-	ktime_t start, end, tmp_time; 
+	ktime_t start, end; 
 	ktime_t with_dmesg, without_dmesg; 
 
 	WRITE_ONCE(start, ktime_get()); 
