@@ -4893,7 +4893,8 @@ __alloc_pages_slowpath(gfp_t gfp_mask, unsigned int order,
 		gfp_mask &= ~__GFP_ATOMIC;
 
 retry_cpuset:
-	pr_info("alloc_page_vma path\t" __FILE__ ":%d\n", __LINE__);
+	pr_info("alloc_page_vma path\t%ld\t" __FILE__ ":%d\n", 
+			(long) current->pid, __LINE__);
 	compaction_retries = 0;
 	no_progress_loops = 0;
 	compact_priority = DEF_COMPACT_PRIORITY;
@@ -4927,7 +4928,8 @@ retry_cpuset:
 	 */
 	page = get_page_from_freelist(gfp_mask, order, alloc_flags, ac);
 	if (page) { 
-		pr_info("alloc_page_vma path\t" __FILE__ ":%d\n", __LINE__);
+		pr_info("alloc_page_vma path\t%ld\t" __FILE__ ":%d\n", 
+				(long) current->pid, __LINE__);
 		goto got_pg;
 	}
 
@@ -4949,7 +4951,8 @@ retry_cpuset:
 						INIT_COMPACT_PRIORITY,
 						&compact_result);
 		if (page) { 
-			pr_info("alloc_page_vma path\t" __FILE__ ":%d\n", __LINE__);
+			pr_info("alloc_page_vma path\t%ld\t" __FILE__ ":%d\n", 
+					(long) current->pid, __LINE__);
 			goto got_pg;
 		}
 
@@ -5011,7 +5014,8 @@ retry:
 	/* Attempt with potentially adjusted zonelist and alloc_flags */
 	page = get_page_from_freelist(gfp_mask, order, alloc_flags, ac);
 	if (page) { 
-		pr_info("alloc_page_vma path\t" __FILE__ ":%d\n", __LINE__);
+		pr_info("alloc_page_vma path\t%ld\t" __FILE__ ":%d\n", 
+				(long) current->pid, __LINE__);
 		goto got_pg;
 	}
 
@@ -5027,7 +5031,8 @@ retry:
 	page = __alloc_pages_direct_reclaim(gfp_mask, order, alloc_flags, ac,
 							&did_some_progress);
 	if (page) { 
-		pr_info("alloc_page_vma path\t" __FILE__ ":%d\n", __LINE__);
+		pr_info("alloc_page_vma path\t%ld\t" __FILE__ ":%d\n", 
+				(long) current->pid, __LINE__);
 		goto got_pg;
 	}
 
@@ -5035,7 +5040,8 @@ retry:
 	page = __alloc_pages_direct_compact(gfp_mask, order, alloc_flags, ac,
 					compact_priority, &compact_result);
 	if (page) { 
-		pr_info("alloc_page_vma path\t" __FILE__ ":%d\n", __LINE__);
+		pr_info("alloc_page_vma path\t%ld\t" __FILE__ ":%d\n", 
+				(long) current->pid, __LINE__);
 		goto got_pg;
 	}
 
@@ -5052,7 +5058,8 @@ retry:
 
 	if (should_reclaim_retry(gfp_mask, order, ac, alloc_flags,
 				 did_some_progress > 0, &no_progress_loops)) { 
-		pr_info("alloc_page_vma path\t" __FILE__ ":%d\n", __LINE__);
+		pr_info("alloc_page_vma path\t%ld\t" __FILE__ ":%d\n", 
+				(long) current->pid, __LINE__);
 		goto retry;
 	}
 
@@ -5076,7 +5083,8 @@ retry:
 	/* Reclaim has failed us, start killing things */
 	page = __alloc_pages_may_oom(gfp_mask, order, ac, &did_some_progress);
 	if (page) { 
-		pr_info("alloc_page_vma path\t" __FILE__ ":%d\n", __LINE__);
+		pr_info("alloc_page_vma path\t%ld\t" __FILE__ ":%d\n", 
+				(long) current->pid, __LINE__);
 		goto got_pg;
 	}
 
@@ -5089,14 +5097,16 @@ retry:
 	/* Retry as long as the OOM killer is making progress */
 	if (did_some_progress) {
 		no_progress_loops = 0;
-		pr_info("alloc_page_vma path\t" __FILE__ ":%d\n", __LINE__);
+		pr_info("alloc_page_vma path\t%ld\t" __FILE__ ":%d\n", 
+				(long) current->pid, __LINE__);
 		goto retry;
 	}
 
 nopage:
 	/* Deal with possible cpuset update races before we fail */
 	if (check_retry_cpuset(cpuset_mems_cookie, ac)) { 
-		pr_info("alloc_page_vma path\t" __FILE__ ":%d\n", __LINE__);
+		pr_info("alloc_page_vma path\t%ld\t" __FILE__ ":%d\n", 
+				(long) current->pid, __LINE__);
 		goto retry_cpuset;
 	}
 
@@ -5135,16 +5145,19 @@ nopage:
 		 */
 		page = __alloc_pages_cpuset_fallback(gfp_mask, order, ALLOC_HARDER, ac);
 		if (page) { 
-			pr_info("alloc_page_vma path\t" __FILE__ ":%d\n", __LINE__);
+			pr_info("alloc_page_vma path\t%ld\t" __FILE__ ":%d\n", 
+					(long) current->pid, __LINE__);
 			goto got_pg;
 		}
 
 		cond_resched();
-		pr_info("alloc_page_vma path\t" __FILE__ ":%d\n", __LINE__);
+		pr_info("alloc_page_vma path\t%ld\t" __FILE__ ":%d\n", 
+				(long) current->pid, __LINE__);
 		goto retry;
 	}
 fail:
-	pr_info("alloc_page_vma path\t" __FILE__ ":%d\n", __LINE__);
+	pr_info("alloc_page_vma path\t%ld\t" __FILE__ ":%d\n", 
+			(long) current->pid, __LINE__);
 	warn_alloc(gfp_mask, ac->nodemask,
 			"page allocation failure: order:%u", order);
 got_pg:
@@ -5403,7 +5416,8 @@ struct page *__alloc_pages(gfp_t gfp, unsigned int order, int preferred_nid,
 	/* First allocation attempt */
 	page = get_page_from_freelist(alloc_gfp, order, alloc_flags, &ac);
 	if (likely(page)) { 
-		pr_info("alloc_page_vma path\t" __FILE__ ":%d\n", __LINE__);
+		pr_info("alloc_page_vma path\t%ld\t" __FILE__ ":%d\n", 
+				(long) current->pid, __LINE__);
 		goto out;
 	}
 
