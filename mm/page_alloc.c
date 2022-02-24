@@ -5430,6 +5430,8 @@ struct page *__alloc_pages(gfp_t gfp, unsigned int order, int preferred_nid,
 	 */
 	ac.nodemask = nodemask;
 
+	pr_info("alloc_page_vma path\t%ld\t" __FILE__ ":%d\n", 
+			(long) current->pid, __LINE__);
 	page = __alloc_pages_slowpath(alloc_gfp, order, &ac);
 
 out:
