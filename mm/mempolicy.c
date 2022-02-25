@@ -2094,7 +2094,7 @@ struct page *alloc_pages_vma(gfp_t gfp, int order, struct vm_area_struct *vma,
 	ktime_t start, end; 
 	int diff_ns; 
 
-	pr_info("alloc_page_vma start\t%ld\n", (long) current->pid); 
+	pr_info("alloc_page_vma start\t%lx\t%x\n", (long) current->pid, order); 
 	barrier(); 
 
 	WRITE_ONCE(start, ktime_get()); 
