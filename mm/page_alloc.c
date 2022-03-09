@@ -3018,7 +3018,7 @@ static int rmqueue_bulk(struct zone *zone, unsigned int order,
 {
 	int i, allocated = 0;
 
-	pr_info("shoop\tbulk global rmqueue of order %x\t%ld:" __ FILE__ ":%d\n",
+	pr_info("shoop\tbulk global rmqueue of order %x\t%ld:" __FILE__ ":%d\n",
 			order, (long) current->pid, __LINE__);
 
 	/*
@@ -3612,7 +3612,7 @@ struct page *__rmqueue_pcplist(struct zone *zone, unsigned int order,
 
 	do {
 		if (list_empty(list)) {
-			pr_info("shoop\trefilling pcplist\t%ld:" __ FILE__ ":%d\n",
+			pr_info("shoop\trefilling pcplist\t%ld:" __FILE__ ":%d\n",
 					(long) current->pid, __LINE__);
 			int batch = READ_ONCE(pcp->batch);
 			int alloced;
@@ -3635,7 +3635,7 @@ struct page *__rmqueue_pcplist(struct zone *zone, unsigned int order,
 				return NULL;
 		}
 
-		pr_info("shoop\tretrieving from pcplist\t%ld:" __ FILE__ ":%d\n",
+		pr_info("shoop\tretrieving from pcplist\t%ld:" __FILE__ ":%d\n",
 				(long) current->pid, __LINE__);
 		page = list_first_entry(list, struct page, lru);
 		list_del(&page->lru);
