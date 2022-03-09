@@ -3609,13 +3609,14 @@ struct page *__rmqueue_pcplist(struct zone *zone, unsigned int order,
 			struct list_head *list)
 {
 	struct page *page;
+	int batch; 
+	int alloced; 
 
 	do {
 		if (list_empty(list)) {
 			pr_info("shoop\trefilling pcplist\t%ld:" __FILE__ ":%d\n",
 					(long) current->pid, __LINE__);
-			int batch = READ_ONCE(pcp->batch);
-			int alloced;
+			batch = READ_ONCE(pcp->batch);
 
 			/*
 			 * Scale batch relative to order if batch implies
