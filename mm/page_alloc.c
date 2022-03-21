@@ -3018,8 +3018,8 @@ static int rmqueue_bulk(struct zone *zone, unsigned int order,
 {
 	int i, allocated = 0;
 
-	pr_info("shoop\tbulk global rmqueue of order %x\t%ld\t" __FILE__ ":%d\n",
-			order, (long) current->pid, __LINE__);
+	pr_info("shoop\tbulk global rmqueue of order %x count %x\t%ld\t" __FILE__ ":%d\n",
+			order, count, (long) current->pid, __LINE__);
 
 	/*
 	 * local_lock_irq held so equivalent to spin_lock_irqsave for
