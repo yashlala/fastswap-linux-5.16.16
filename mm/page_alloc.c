@@ -3018,7 +3018,7 @@ static int rmqueue_bulk(struct zone *zone, unsigned int order,
 {
 	int i, allocated = 0;
 
-	pr_info("shoop\tbulk global rmqueue of order %x\t%ld:" __FILE__ ":%d\n",
+	pr_info("shoop\tbulk global rmqueue of order %x\t%ld\t" __FILE__ ":%d\n",
 			order, (long) current->pid, __LINE__);
 
 	/*
@@ -3614,7 +3614,7 @@ struct page *__rmqueue_pcplist(struct zone *zone, unsigned int order,
 
 	do {
 		if (list_empty(list)) {
-			pr_info("shoop\trefilling pcplist\t%ld:" __FILE__ ":%d\n",
+			pr_info("shoop\trefilling pcplist\t%ld\t" __FILE__ ":%d\n",
 					(long) current->pid, __LINE__);
 			batch = READ_ONCE(pcp->batch);
 
@@ -3636,7 +3636,7 @@ struct page *__rmqueue_pcplist(struct zone *zone, unsigned int order,
 				return NULL;
 		}
 
-		pr_info("shoop\tretrieving from pcplist\t%ld:" __FILE__ ":%d\n",
+		pr_info("shoop\tretrieving from pcplist\t%ld\t" __FILE__ ":%d\n",
 				(long) current->pid, __LINE__);
 		page = list_first_entry(list, struct page, lru);
 		list_del(&page->lru);
@@ -3695,7 +3695,7 @@ struct page *rmqueue(struct zone *preferred_zone,
 		 */
 		if (!IS_ENABLED(CONFIG_CMA) || alloc_flags & ALLOC_CMA ||
 				migratetype != MIGRATE_MOVABLE) {
-			pr_info("shoop\tattempting pcplist allocation\t%ld:" __FILE__ ":%d\n",
+			pr_info("shoop\tattempting pcplist allocation\t%ld\t" __FILE__ ":%d\n",
 					(long) current->pid, __LINE__);
 			page = rmqueue_pcplist(preferred_zone, zone, order,
 					gfp_flags, migratetype, alloc_flags);
@@ -3719,14 +3719,14 @@ struct page *rmqueue(struct zone *preferred_zone,
 		 * request should skip it.
 		 */
 		if (order > 0 && alloc_flags & ALLOC_HARDER) {
-			pr_info("shoop\tno pcplist, find highatomic page\t%ld:" __FILE__ ":%d\n",
+			pr_info("shoop\tno pcplist, find highatomic page\t%ld\t" __FILE__ ":%d\n",
 					(long) current->pid, __LINE__);
 			page = __rmqueue_smallest(zone, order, MIGRATE_HIGHATOMIC);
 			if (page)
 				trace_mm_page_alloc_zone_locked(page, order, migratetype);
 		}
 		if (!page) { 
-			pr_info("shoop\tpcp+highatomic failed, __rmqueue slowpath\t%ld:" __FILE__ ":%d\n",
+			pr_info("shoop\tpcp+highatomic failed, __rmqueue slowpath\t%ld\t" __FILE__ ":%d\n",
 					(long) current->pid, __LINE__);
 			page = __rmqueue(zone, order, migratetype, alloc_flags);
 		}
