@@ -3018,7 +3018,8 @@ static int rmqueue_bulk(struct zone *zone, unsigned int order,
 {
 	int i, allocated = 0;
 
-	pr_info("shoop\tbulk global rmqueue of order %x count %x\t%ld\t" __FILE__ ":%d\n",
+	pr_info("shoop\tbulk global rmqueue of order %x count %lx\t%ld\t" 
+			__FILE__ ":%d\n",
 			order, count, (long) current->pid, __LINE__);
 
 	/*
