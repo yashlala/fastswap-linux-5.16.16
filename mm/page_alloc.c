@@ -72,6 +72,7 @@
 #include <linux/padata.h>
 #include <linux/khugepaged.h>
 #include <linux/buffer_head.h>
+#include <linux/asm_profiling.h>
 #include <asm/sections.h>
 #include <asm/tlbflush.h>
 #include <asm/div64.h>
@@ -9448,4 +9449,120 @@ bool take_page_off_buddy(struct page *page)
 	spin_unlock_irqrestore(&zone->lock, flags);
 	return ret;
 }
+#endif
+
+
+#ifdef CONFIG_DEBUG_FS
+
+static atomic_t heavy_worker_tmp = ATOMIC_INIT(0);
+static atomic_t heavy_worker_count = ATOMIC_INIT(0);
+
+#pragma GCC optimize ("O0")
+static void heavy_worker() { 
+	int i, j, k; 
+	int count = (int) atomic_read(&heavy_worker_count);
+
+	atomic_set(&heavy_worker_tmp, 0); 
+
+	for (i = 0; i < count; i++) { 
+		for (j = 0; j < count; j++) {
+			for (k = 0; k < count; k++) {
+				atomic_set(&heavy_worker_tmp, atomic_read(&heavy_worker_tmp) + 1); 
+				barrier(); 
+			}
+			atomic_set(&heavy_worker_tmp, atomic_read(&heavy_worker_tmp) >> 2); 
+		}
+		atomic_set(&heavy_worker_tmp, atomic_read(&heavy_worker_tmp) >> 1); 
+	}
+}
+
+#pragma GCC optimize ("O0")
+static int ktime_get_profiler()
+{
+	ktime_t start, end; 
+	unsigned long flags; 
+
+	preempt_disable(); 
+	raw_local_irq_save(flags); 
+
+	start = ktime_get(); 
+	barrier(); 
+	heavy_worker(); 
+	barrier(); 
+	end = ktime_get();
+
+	raw_local_irq_restore(flags); 
+	preempt_enable(); 
+
+	return (int) ktime_to_ns(ktime_sub(end, start)); 
+}
+
+#pragma GCC optimize ("O0")
+static int asm_timer_profiler()
+{
+	uint64_t start, end; 
+	unsigned long flags; 
+
+	preempt_disable(); 
+	raw_local_irq_save(flags); 
+
+	start = asm_timer_start_in_us(); 
+	heavy_worker(); 
+	end = asm_timer_end_in_us();
+
+	raw_local_irq_restore(flags); 
+	preempt_enable(); 
+
+	return (int) end - start; 
+}
+
+static int ktime_get_profiler_get(void *data, u64 *val)
+{
+	*val = (u64) ktime_get_profiler(); 
+	return 0;
+}
+static int asm_timer_profiler_get(void *data, u64 *val)
+{
+	*val = (u64) asm_timer_profiler(); 
+	return 0;
+}
+static int ktime_get_profiler_set(void *data, u64 val)
+{
+	atomic_set(&heavy_worker_count, (atomic_t) val);
+ 	return 0;
+}
+static int asm_timer_profiler_set(void *data, u64 val)
+{
+	atomic_set(&heavy_worker_count, (atomic_t) val);
+ 	return 0;
+}
+
+DEFINE_SIMPLE_ATTRIBUTE(ktime_get_profiler_fops,
+		ktime_get_profiler_get, ktime_get_profiler_set, "%llu\n");
+DEFINE_SIMPLE_ATTRIBUTE(asm_timer_profiler_fops,
+		asm_timer_profiler_get, asm_timer_profiler_set, "%llu\n");
+
+static int __init ktime_get_profiler_debugfs(void)
+{
+	void *ret;
+
+	ret = debugfs_create_file("ktime_get_profiler", 0644, NULL, NULL,
+			&ktime_get_profiler_fops);
+	if (!ret)
+		pr_warn("Failed to create ktime_get_profiler in debugfs");
+	return 0;
+}
+late_initcall(ktime_get_profiler_debugfs);
+static int __init asm_timer_profiler_debugfs(void)
+{
+	void *ret;
+
+	ret = debugfs_create_file("asm_timer_profiler", 0644, NULL, NULL,
+			&asm_timer_profiler_fops);
+	if (!ret)
+		pr_warn("Failed to create asm_timer_profiler in debugfs");
+	return 0;
+}
+late_initcall(asm_timer_profiler_debugfs);
+
 #endif
