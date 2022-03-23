@@ -73,6 +73,7 @@
 #include <linux/khugepaged.h>
 #include <linux/buffer_head.h>
 #include <linux/asm_profiling.h>
+#include <linux/debugfs.h>
 #include <asm/sections.h>
 #include <asm/tlbflush.h>
 #include <asm/div64.h>
@@ -9458,7 +9459,7 @@ static atomic_t heavy_worker_tmp = ATOMIC_INIT(0);
 static atomic_t heavy_worker_count = ATOMIC_INIT(0);
 
 #pragma GCC optimize ("O0")
-static void heavy_worker() { 
+static void heavy_worker(void) { 
 	int i, j, k; 
 	int count = (int) atomic_read(&heavy_worker_count);
 
@@ -9477,7 +9478,7 @@ static void heavy_worker() {
 }
 
 #pragma GCC optimize ("O0")
-static int ktime_get_profiler()
+static int ktime_get_profiler(void)
 {
 	ktime_t start, end; 
 	unsigned long flags; 
@@ -9498,7 +9499,7 @@ static int ktime_get_profiler()
 }
 
 #pragma GCC optimize ("O0")
-static int asm_timer_profiler()
+static int asm_timer_profiler(void)
 {
 	uint64_t start, end; 
 	unsigned long flags; 
@@ -9528,12 +9529,12 @@ static int asm_timer_profiler_get(void *data, u64 *val)
 }
 static int ktime_get_profiler_set(void *data, u64 val)
 {
-	atomic_set(&heavy_worker_count, (atomic_t) val);
+	atomic_set(&heavy_worker_count, val);
  	return 0;
 }
 static int asm_timer_profiler_set(void *data, u64 val)
 {
-	atomic_set(&heavy_worker_count, (atomic_t) val);
+	atomic_set(&heavy_worker_count, val);
  	return 0;
 }
 
