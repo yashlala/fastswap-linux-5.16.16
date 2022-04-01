@@ -720,6 +720,11 @@ struct kmap_ctrl {
 #endif
 };
 
+enum ppa_path_type {
+	PPA_PATH_BASE, 
+	PPA_PATH_REFILL,
+};
+
 struct task_struct {
 #ifdef CONFIG_THREAD_INFO_IN_TASK
 	/*
@@ -1487,6 +1492,12 @@ struct task_struct {
 	 */
 	struct callback_head		l1d_flush_kill;
 #endif
+
+	/* 
+	 * Use this to find what path through the physical page allocation code
+	 * we're taking 
+	 */
+	int 					ppa_path; 
 
 	/*
 	 * New fields for task_struct should be added above here, so that

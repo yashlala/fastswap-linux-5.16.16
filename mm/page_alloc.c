@@ -3611,6 +3611,8 @@ struct page *__rmqueue_pcplist(struct zone *zone, unsigned int order,
 		if (list_empty(list)) {
 			int batch = READ_ONCE(pcp->batch);
 			int alloced;
+			
+			current->ppa_path = PPA_PATH_REFILL; 
 
 			/*
 			 * Scale batch relative to order if batch implies
@@ -5346,7 +5348,12 @@ struct page *__alloc_pages(gfp_t gfp, unsigned int order, int preferred_nid,
 	struct page *page;
 	unsigned int alloc_flags = ALLOC_WMARK_LOW;
 	gfp_t alloc_gfp; /* The gfp_t that was actually used for allocation */
+	u64 start_time, end_time, total_time; 
 	struct alloc_context ac = { };
+
+	WRITE_ONCE(start_time, ktime_get_ns()); 
+	smp_mb(); 
+	current->ppa_path = PPA_PATH_BASE; 
 
 	/*
 	 * There are several places where we assume that the order value is sane
@@ -5401,6 +5408,23 @@ out:
 	}
 
 	trace_mm_page_alloc(page, order, alloc_gfp, ac.migratetype);
+
+	smp_mb(); 
+	WRITE_ONCE(end_time, ktime_get_ns()); 
+	smp_mb(); 
+	total_time = READ_ONCE(end_time) - READ_ONCE(start_time); 
+
+	switch (current->ppa_path) { 
+	case PPA_PATH_BASE: 
+		pr_info("shoop\t%llu\tbase\n", total_time); 
+		break; 
+	case PPA_PATH_REFILL: 
+		pr_info("shoop\t%llu\trefill\n", total_time); 
+		break; 
+	default:
+		pr_info("shoop\t%llu\t???\n", total_time); 
+		break; 
+	}
 
 	return page;
 }
