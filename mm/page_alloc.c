@@ -9486,11 +9486,11 @@ static int ktime_get_profiler(void)
 	preempt_disable(); 
 	raw_local_irq_save(flags); 
 
-	start = ktime_get(); 
-	barrier(); 
+	WRITE_ONCE(start, ktime_get()); 
+	smp_mb(); 
 	heavy_worker(); 
-	barrier(); 
-	end = ktime_get();
+	smp_mb(); 
+	WRITE_ONCE(end, ktime_get());
 
 	raw_local_irq_restore(flags); 
 	preempt_enable(); 
@@ -9507,9 +9507,12 @@ static int asm_timer_profiler(void)
 	preempt_disable(); 
 	raw_local_irq_save(flags); 
 
-	start = asm_timer_start_in_us(); 
+	// asm_timer methods call CPU serializing CPUID instruction. 
+	WRITE_ONCE(start, asm_timer_start_in_us()); 
+	smp_mb(); 
 	heavy_worker(); 
-	end = asm_timer_end_in_us();
+	smp_mb(); 
+	WRITE_ONCE(end, asm_timer_end_in_us());
 
 	raw_local_irq_restore(flags); 
 	preempt_enable(); 
