@@ -9507,12 +9507,14 @@ static int asm_timer_profiler(void)
 	preempt_disable(); 
 	raw_local_irq_save(flags); 
 
-	// asm_timer methods call CPU serializing CPUID instruction. 
-	WRITE_ONCE(start, asm_timer_start_in_us()); 
+	// TODO: Switch back to us or ns versions, once we've run `turbostat` on
+	// our new test environment and found its TSC clock frequency. 
+	// WARNING: Outputs number of _cycles_!
+	WRITE_ONCE(start, asm_get_cycles_start()); 
 	smp_mb(); 
 	heavy_worker(); 
 	smp_mb(); 
-	WRITE_ONCE(end, asm_timer_end_in_us());
+	WRITE_ONCE(end, asm_get_cycles_end());
 
 	raw_local_irq_restore(flags); 
 	preempt_enable(); 
