@@ -67,7 +67,7 @@ struct task_struct init_task
 #endif
 	__aligned(L1_CACHE_BYTES)
 = {
-	.ppa_path	= 0
+	.ppa_path	= PPA_PATH_BASE,
 #ifdef CONFIG_THREAD_INFO_IN_TASK
 	.thread_info	= INIT_THREAD_INFO(init_task),
 	.stack_refcount	= REFCOUNT_INIT(1),
