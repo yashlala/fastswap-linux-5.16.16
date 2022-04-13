@@ -1497,7 +1497,7 @@ struct task_struct {
 	 * Use this to find what path through the physical page allocation code
 	 * we're taking 
 	 */
-	int 					ppa_path; 
+	enum ppa_path_type 		ppa_path; 
 
 	/*
 	 * New fields for task_struct should be added above here, so that
