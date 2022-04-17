@@ -5349,10 +5349,11 @@ struct page *__alloc_pages(gfp_t gfp, unsigned int order, int preferred_nid,
 	struct page *page;
 	unsigned int alloc_flags = ALLOC_WMARK_LOW;
 	gfp_t alloc_gfp; /* The gfp_t that was actually used for allocation */
-	u64 start_time, end_time, total_time; 
+	ktime_t start_time, end_time; 
+	u64 total_time_ns; 
 	struct alloc_context ac = { };
 
-	WRITE_ONCE(start_time, ktime_get_ns()); 
+	WRITE_ONCE(start_time, ktime_get()); 
 	smp_mb(); 
 	current->ppa_path = PPA_PATH_BASE; 
 
@@ -5411,19 +5412,19 @@ out:
 	trace_mm_page_alloc(page, order, alloc_gfp, ac.migratetype);
 
 	smp_mb(); 
-	WRITE_ONCE(end_time, ktime_get_ns()); 
+	WRITE_ONCE(end_time, ktime_get()); 
 	smp_mb(); 
-	total_time = READ_ONCE(end_time) - READ_ONCE(start_time); 
+	total_time_ns = ktime_to_ns(ktime_sub(end_time, start_time));
 
 	switch (current->ppa_path) { 
 	case PPA_PATH_BASE: 
-		pr_info("shoop\t%llu\tbase\n", total_time); 
+		pr_info("shoop\t%llu\tbase\n", total_time_ns); 
 		break; 
 	case PPA_PATH_REFILL: 
-		pr_info("shoop\t%llu\trefill\n", total_time); 
+		pr_info("shoop\t%llu\trefill\n", total_time_ns); 
 		break; 
 	default:
-		pr_info("shoop\t%llu\t???\n", total_time); 
+		pr_info("shoop\t%llu\t???\n", total_time_ns); 
 		break; 
 	}
 
