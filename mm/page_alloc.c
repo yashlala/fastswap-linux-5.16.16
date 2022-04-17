@@ -73,6 +73,7 @@
 #include <linux/khugepaged.h>
 #include <linux/buffer_head.h>
 #include <linux/sched.h>
+#include <linux/asm_profiling.h>
 #include <asm/sections.h>
 #include <asm/tlbflush.h>
 #include <asm/div64.h>
@@ -5349,13 +5350,11 @@ struct page *__alloc_pages(gfp_t gfp, unsigned int order, int preferred_nid,
 	struct page *page;
 	unsigned int alloc_flags = ALLOC_WMARK_LOW;
 	gfp_t alloc_gfp; /* The gfp_t that was actually used for allocation */
-	ktime_t start_time, end_time; 
-	u64 total_time_ns; 
+	u64 start_cycles, end_cycles, total_cycles; 
 	struct alloc_context ac = { };
 
-	WRITE_ONCE(start_time, ktime_get()); 
-	smp_mb(); 
 	current->ppa_path = PPA_PATH_BASE; 
+	WRITE_ONCE(start_cycles, asm_get_cycles_start()); 
 
 	/*
 	 * There are several places where we assume that the order value is sane
@@ -5411,20 +5410,19 @@ out:
 
 	trace_mm_page_alloc(page, order, alloc_gfp, ac.migratetype);
 
+	WRITE_ONCE(end_cycles, asm_get_cycles_end()); 
 	smp_mb(); 
-	WRITE_ONCE(end_time, ktime_get()); 
-	smp_mb(); 
-	total_time_ns = ktime_to_ns(ktime_sub(end_time, start_time));
+	total_cycles = end_cycles - start_cycles;
 
 	switch (current->ppa_path) { 
 	case PPA_PATH_BASE: 
-		pr_info("shoop\t%llu\tbase\n", total_time_ns); 
+		pr_info("shoop\t%llu\tbase\n", total_cycles); 
 		break; 
 	case PPA_PATH_REFILL: 
-		pr_info("shoop\t%llu\trefill\n", total_time_ns); 
+		pr_info("shoop\t%llu\trefill\n", total_cycles); 
 		break; 
 	default:
-		pr_info("shoop\t%llu\t???\n", total_time_ns); 
+		pr_info("shoop\t%llu\t???\n", total_cycles); 
 		break; 
 	}
 
